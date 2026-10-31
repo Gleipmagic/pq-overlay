@@ -20,7 +20,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
 
     private bool _dragging;
-    private Point _dragStartMouse;
+    private System.Windows.Point _dragStartMouse;
     private double _dragStartLeft;
     private double _dragStartTop;
     private string _lastLookupKey = string.Empty;
@@ -233,7 +233,7 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void PanelRoot_MouseMove(object sender, MouseEventArgs e)
+    private void PanelRoot_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (!_dragging || _eq.Process is null || e.LeftButton != MouseButtonState.Pressed) return;
         var now = PointToScreen(e.GetPosition(this));
