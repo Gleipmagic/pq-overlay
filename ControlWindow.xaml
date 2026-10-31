@@ -19,13 +19,13 @@
 
         <StackPanel Grid.Row="0">
             <TextBlock Text="EQ Mob Overlay" FontSize="20" FontWeight="SemiBold"/>
-            <TextBlock Text="The overlay auto-detects EQ, or you can select a running eqgame.exe manually."
+            <TextBlock Text="The overlay auto-detects EQ. If that fails, select the actual EverQuest window manually from the full list of visible apps."
                        Margin="0,4,0,0" Foreground="#FF666666" TextWrapping="Wrap"/>
         </StackPanel>
 
         <Border Grid.Row="2" BorderBrush="#FFD0D0D0" BorderThickness="1" CornerRadius="4" Padding="12">
             <StackPanel>
-                <TextBlock Text="EverQuest process" FontWeight="SemiBold"/>
+                <TextBlock Text="EverQuest window / process" FontWeight="SemiBold"/>
                 <Grid Margin="0,8,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -36,11 +36,11 @@
                             Click="RefreshButton_Click"/>
                 </Grid>
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                    <Button x:Name="SelectButton" Content="Use selected EQ" Padding="14,5" Click="SelectButton_Click"/>
+                    <Button x:Name="SelectButton" Content="Use selected window" Padding="14,5" Click="SelectButton_Click"/>
                     <Button x:Name="AutoButton" Content="Auto Detect" Margin="8,0,0,0" Padding="14,5" Click="AutoButton_Click"/>
                 </StackPanel>
                 <TextBlock x:Name="ProcessHelp" Margin="0,7,0,0" Foreground="#FF777777" TextWrapping="Wrap"
-                           Text="If more than one EQ client is running, select the one you want by PID."/>
+                           Text="The list includes all visible application windows. Choose the EverQuest/Quarm window by title, process name, and PID."/>
             </StackPanel>
         </Border>
 

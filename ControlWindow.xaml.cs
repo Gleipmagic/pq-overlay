@@ -46,19 +46,19 @@ public partial class ControlWindow : Window
     {
         if (ProcessList.SelectedItem is not EqProcessCandidate selected)
         {
-            ProcessHelp.Text = "Select a running eqgame.exe from the list first.";
+            ProcessHelp.Text = "Select the EverQuest/Quarm window from the list first.";
             return;
         }
 
-        _overlay.SelectEqProcess(selected.ProcessId);
-        ProcessHelp.Text = $"Manually selected PID {selected.ProcessId}.";
+        _overlay.SelectEqProcess(selected);
+        ProcessHelp.Text = $"Selected {selected.WindowTitle} — {selected.ProcessName} (PID {selected.ProcessId}).";
         RefreshStatus();
     }
 
     private void AutoButton_Click(object sender, RoutedEventArgs e)
     {
         _overlay.UseAutoDetect();
-        ProcessHelp.Text = "Auto detect enabled. The first usable eqgame.exe will be selected.";
+        ProcessHelp.Text = "Auto detect enabled. The app will prefer windows named EverQuest/Project Quarm or processes named eqgame.";
         RefreshStatus();
     }
 
@@ -67,7 +67,7 @@ public partial class ControlWindow : Window
         if (_syncingCheckbox) return;
         var enabled = OverlayEnabledCheck.IsChecked == true;
         _overlay.SetOverlayEnabled(enabled);
-        if (System.Windows.Application.Current is App app) app.SetTrayOverlayChecked(enabled);
+        if (Application.Current is App app) app.SetTrayOverlayChecked(enabled);
     }
 
     private void RefreshProcessList()
@@ -81,12 +81,12 @@ public partial class ControlWindow : Window
         if (status.ProcessId.HasValue)
             select = processes.FirstOrDefault(p => p.ProcessId == status.ProcessId.Value);
         if (select is null && previous is not null)
-            select = processes.FirstOrDefault(p => p.ProcessId == previous.ProcessId);
+            select = processes.FirstOrDefault(p => p.ProcessId == previous.ProcessId && p.WindowHandle == previous.WindowHandle);
         if (select is null && processes.Count == 1) select = processes[0];
         ProcessList.SelectedItem = select;
 
         if (processes.Count == 0)
-            ProcessHelp.Text = "No running eqgame.exe found. Start EverQuest, then click Refresh.";
+            ProcessHelp.Text = "No visible application windows found. If EQ is open, try running this overlay as Administrator and click Refresh.";
     }
 
     private void RefreshStatus()
@@ -97,7 +97,7 @@ public partial class ControlWindow : Window
         DatabaseStatus.Text = status.DatabaseText;
         SyncOverlayCheckbox(status.OverlayEnabled);
 
-        if (System.Windows.Application.Current is App app)
+        if (Application.Current is App app)
         {
             app.UpdateTrayText(status.Attached && status.ProcessId.HasValue
                 ? $"EQ Mob Overlay — EQ PID {status.ProcessId.Value}"

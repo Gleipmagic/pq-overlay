@@ -10,12 +10,13 @@ public readonly record struct Vec3(float X, float Y, float Z)
     }
 }
 
-public sealed record EqProcessCandidate(int ProcessId, string WindowTitle)
+public sealed record EqProcessCandidate(int ProcessId, string ProcessName, string WindowTitle, long WindowHandle)
 {
     public override string ToString()
     {
-        var title = string.IsNullOrWhiteSpace(WindowTitle) ? "EverQuest" : WindowTitle.Trim();
-        return $"{title}  (PID {ProcessId})";
+        var process = string.IsNullOrWhiteSpace(ProcessName) ? "process" : ProcessName.Trim();
+        var title = string.IsNullOrWhiteSpace(WindowTitle) ? "(no window title)" : WindowTitle.Trim();
+        return $"{title}  —  {process}  (PID {ProcessId})";
     }
 }
 

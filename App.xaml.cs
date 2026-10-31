@@ -4,7 +4,7 @@ using Forms = System.Windows.Forms;
 
 namespace EQMobOverlay;
 
-public partial class App : System.Windows.Application
+public partial class App : Application
 {
     private MainWindow? _overlay;
     private ControlWindow? _control;

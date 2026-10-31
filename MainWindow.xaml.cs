@@ -42,9 +42,9 @@ public partial class MainWindow : Window
 
     public IReadOnlyList<EqProcessCandidate> GetEqProcesses() => _eq.GetCandidates();
 
-    public bool SelectEqProcess(int processId)
+    public bool SelectEqProcess(EqProcessCandidate candidate)
     {
-        var attached = _eq.SelectProcess(processId);
+        var attached = _eq.SelectProcess(candidate);
         _lastLookupKey = string.Empty;
         _npc = null;
         return attached;
@@ -126,7 +126,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            if (!TryGetEqClientBounds(_eq.Process, out var bounds))
+            if (!TryGetEqClientBounds(_eq.WindowHandle, out var bounds))
             {
                 _targetStatus = "EQ window is minimized or has no usable client area";
                 Hide();
@@ -138,7 +138,7 @@ public partial class MainWindow : Window
             var foreground = GetForegroundWindow();
             var overlayHwnd = new WindowInteropHelper(this).Handle;
             var shouldShow = _overlayEnabled &&
-                             (foreground == _eq.Process.MainWindowHandle || foreground == overlayHwnd);
+                             (foreground == _eq.WindowHandle || foreground == overlayHwnd);
             if (shouldShow)
             {
                 if (!IsVisible) Show();
@@ -241,7 +241,7 @@ public partial class MainWindow : Window
         var nextLeft = _dragStartLeft + (now.X - _dragStartMouse.X) / scale;
         var nextTop = _dragStartTop + (now.Y - _dragStartMouse.Y) / scale;
 
-        if (TryGetEqClientBounds(_eq.Process, out var bounds))
+        if (TryGetEqClientBounds(_eq.WindowHandle, out var bounds))
         {
             Left = Math.Clamp(nextLeft, bounds.Left, Math.Max(bounds.Left, bounds.Right - ActualWidth));
             Top = Math.Clamp(nextTop, bounds.Top, Math.Max(bounds.Top, bounds.Bottom - ActualHeight));
@@ -255,7 +255,7 @@ public partial class MainWindow : Window
         _dragging = false;
         PanelRoot.ReleaseMouseCapture();
 
-        if (_eq.Process is not null && TryGetEqClientBounds(_eq.Process, out var bounds))
+        if (_eq.Process is not null && TryGetEqClientBounds(_eq.WindowHandle, out var bounds))
         {
             _settings.OffsetX = Left - bounds.Left;
             _settings.OffsetY = Top - bounds.Top;
@@ -281,10 +281,9 @@ public partial class MainWindow : Window
         return source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
     }
 
-    private bool TryGetEqClientBounds(Process process, out Rect bounds)
+    private bool TryGetEqClientBounds(IntPtr hwnd, out Rect bounds)
     {
         bounds = Rect.Empty;
-        var hwnd = process.MainWindowHandle;
         if (hwnd == IntPtr.Zero || IsIconic(hwnd)) return false;
         if (!GetClientRect(hwnd, out var rect)) return false;
         var topLeft = new POINT { X = rect.Left, Y = rect.Top };

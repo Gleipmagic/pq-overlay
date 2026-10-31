@@ -26,48 +26,72 @@ public sealed class EqMemoryReader : IDisposable
 
     private Process? _process;
     private IntPtr _handle;
+    private IntPtr _windowHandle;
     private int? _preferredProcessId;
+    private long _preferredWindowHandle;
 
     public Process? Process => _process;
+    public IntPtr WindowHandle => _windowHandle != IntPtr.Zero ? _windowHandle : (_process?.MainWindowHandle ?? IntPtr.Zero);
     public bool IsAttached => _process is { HasExited: false } && _handle != IntPtr.Zero;
     public bool ManualSelection => _preferredProcessId.HasValue;
     public int? PreferredProcessId => _preferredProcessId;
     public string LastAttachStatus { get; private set; } = "Not attached";
     public string LastReadStatus { get; private set; } = "No target read yet";
 
+    // Manual selection intentionally lists every visible top-level application window.
+    // Some Quarm launchers/wrappers do not expose the client to .NET as a process named exactly "eqgame".
     public IReadOnlyList<EqProcessCandidate> GetCandidates()
     {
         var result = new List<EqProcessCandidate>();
-        Process[] processes;
-        try
-        {
-            processes = Process.GetProcessesByName("eqgame");
-        }
-        catch
-        {
-            return result;
-        }
+        var seen = new HashSet<(int, long)>();
+        var ownPid = Environment.ProcessId;
 
-        foreach (var process in processes)
+        EnumWindows((hwnd, _) =>
         {
             try
             {
-                if (process.HasExited) continue;
-                result.Add(new EqProcessCandidate(process.Id, process.MainWindowTitle));
-            }
-            catch { }
-            finally
-            {
-                process.Dispose();
-            }
-        }
+                if (hwnd == IntPtr.Zero || !IsWindowVisible(hwnd)) return true;
+                var titleLength = GetWindowTextLength(hwnd);
+                if (titleLength <= 0) return true;
 
-        return result.OrderBy(p => p.ProcessId).ToArray();
+                var titleBuilder = new StringBuilder(titleLength + 1);
+                GetWindowText(hwnd, titleBuilder, titleBuilder.Capacity);
+                var title = titleBuilder.ToString().Trim();
+                if (string.IsNullOrWhiteSpace(title)) return true;
+
+                GetWindowThreadProcessId(hwnd, out var rawPid);
+                var pid = unchecked((int)rawPid);
+                if (pid <= 0 || pid == ownPid) return true;
+
+                using var process = Process.GetProcessById(pid);
+                if (process.HasExited) return true;
+                var key = (pid, hwnd.ToInt64());
+                if (!seen.Add(key)) return true;
+
+                string processName;
+                try { processName = process.ProcessName; }
+                catch { processName = "unknown"; }
+
+                result.Add(new EqProcessCandidate(pid, processName, title, hwnd.ToInt64()));
+            }
+            catch
+            {
+                // Some protected/system windows cannot be inspected. Ignore them.
+            }
+            return true;
+        }, IntPtr.Zero);
+
+        return result
+            .OrderByDescending(CandidateScore)
+            .ThenBy(c => c.WindowTitle, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(c => c.ProcessId)
+            .ToArray();
     }
 
-    public bool SelectProcess(int processId)
+    public bool SelectProcess(EqProcessCandidate candidate)
     {
-        _preferredProcessId = processId;
+        _preferredProcessId = candidate.ProcessId;
+        _preferredWindowHandle = candidate.WindowHandle;
         Detach();
         return EnsureAttached();
     }
@@ -75,6 +99,7 @@ public sealed class EqMemoryReader : IDisposable
     public void UseAutoDetect()
     {
         _preferredProcessId = null;
+        _preferredWindowHandle = 0;
         Detach();
         LastAttachStatus = "Auto detect enabled";
     }
@@ -96,82 +121,97 @@ public sealed class EqMemoryReader : IDisposable
                 if (selected.HasExited)
                 {
                     selected.Dispose();
-                    LastAttachStatus = "Selected EQ process has exited";
+                    LastAttachStatus = "Selected process has exited";
                     return false;
                 }
 
-                if (!selected.ProcessName.Equals("eqgame", StringComparison.OrdinalIgnoreCase))
-                {
-                    selected.Dispose();
-                    LastAttachStatus = "Selected process is not eqgame.exe";
-                    return false;
-                }
-
-                var attached = TryAttach(selected, manual: true);
+                var attached = TryAttach(selected, manual: true, new IntPtr(_preferredWindowHandle));
                 if (!attached) selected.Dispose();
                 return attached;
             }
             catch (ArgumentException)
             {
-                LastAttachStatus = "Selected EQ process is no longer running";
+                LastAttachStatus = "Selected process is no longer running";
                 return false;
             }
             catch (Exception ex)
             {
-                LastAttachStatus = $"Could not open selected EQ: {ex.Message}";
+                LastAttachStatus = $"Could not open selected process: {ex.Message}";
                 return false;
             }
         }
 
-        Process[] candidates;
+        // First try visible windows that strongly resemble EverQuest/Project Quarm.
+        var likely = GetCandidates().Where(c => CandidateScore(c) > 0).ToArray();
+        foreach (var candidateInfo in likely)
+        {
+            try
+            {
+                var candidate = Process.GetProcessById(candidateInfo.ProcessId);
+                if (candidate.HasExited)
+                {
+                    candidate.Dispose();
+                    continue;
+                }
+                if (TryAttach(candidate, manual: false, new IntPtr(candidateInfo.WindowHandle))) return true;
+                candidate.Dispose();
+            }
+            catch { }
+        }
+
+        // Fallback for clients whose main window was not enumerable but whose process name really is eqgame.
+        Process[] exactCandidates;
         try
         {
-            candidates = Process.GetProcessesByName("eqgame")
-                .Where(p => !p.HasExited)
-                .OrderByDescending(p => p.MainWindowHandle != IntPtr.Zero)
-                .ToArray();
+            exactCandidates = Process.GetProcessesByName("eqgame").Where(p => !p.HasExited).ToArray();
         }
         catch
         {
-            LastAttachStatus = "Could not enumerate eqgame.exe";
+            LastAttachStatus = "Could not enumerate running processes";
             return false;
         }
 
-        if (candidates.Length == 0)
+        foreach (var candidate in exactCandidates)
         {
-            LastAttachStatus = "No running eqgame.exe found";
-            return false;
-        }
-
-        for (var i = 0; i < candidates.Length; i++)
-        {
-            var candidate = candidates[i];
-            if (TryAttach(candidate, manual: false))
-            {
-                for (var j = i + 1; j < candidates.Length; j++) candidates[j].Dispose();
-                return true;
-            }
+            if (TryAttach(candidate, manual: false, candidate.MainWindowHandle)) return true;
             candidate.Dispose();
         }
 
+        LastAttachStatus = "No obvious EQ window found — choose EverQuest manually from the window list";
         return false;
     }
 
-    private bool TryAttach(Process candidate, bool manual)
+    private static int CandidateScore(EqProcessCandidate candidate)
+    {
+        var process = candidate.ProcessName ?? string.Empty;
+        var title = candidate.WindowTitle ?? string.Empty;
+        var score = 0;
+        if (process.Equals("eqgame", StringComparison.OrdinalIgnoreCase)) score += 100;
+        else if (process.Contains("eqgame", StringComparison.OrdinalIgnoreCase)) score += 80;
+        if (title.Contains("EverQuest", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if (title.Contains("Project Quarm", StringComparison.OrdinalIgnoreCase)) score += 80;
+        else if (title.Contains("Quarm", StringComparison.OrdinalIgnoreCase)) score += 60;
+        return score;
+    }
+
+    private bool TryAttach(Process candidate, bool manual, IntPtr selectedWindow)
     {
         var handle = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, false, candidate.Id);
         if (handle == IntPtr.Zero)
         {
             var error = Marshal.GetLastWin32Error();
             LastAttachStatus = error == 5
-                ? "Access denied opening EQ — try running the overlay as Administrator"
-                : $"Could not open EQ process (Windows error {error})";
+                ? "Access denied opening selected process — try running the overlay as Administrator"
+                : $"Could not open selected process (Windows error {error})";
             return false;
         }
 
         _process = candidate;
         _handle = handle;
-        LastAttachStatus = $"Attached to eqgame.exe PID {candidate.Id}" + (manual ? " (manual)" : " (auto)");
+        _windowHandle = selectedWindow != IntPtr.Zero ? selectedWindow : candidate.MainWindowHandle;
+        string processName;
+        try { processName = candidate.ProcessName; } catch { processName = "process"; }
+        LastAttachStatus = $"Attached to {processName} PID {candidate.Id}" + (manual ? " (manual)" : " (auto)");
         return true;
     }
 
@@ -202,7 +242,6 @@ public sealed class EqMemoryReader : IDisposable
                 return null;
             }
 
-            // Type 2/3 are corpse-ish/non-live entities in this client. Keep players/NPCs only.
             if (target.Value.Type > 1)
             {
                 LastReadStatus = "Target is not a live NPC/player";
@@ -231,13 +270,12 @@ public sealed class EqMemoryReader : IDisposable
         }
         catch (Win32Exception)
         {
-            LastReadStatus = "Lost access to EQ process";
+            LastReadStatus = "Lost access to selected process";
             Detach();
             return null;
         }
         catch
         {
-            // A zoning/client transition can invalidate pointers for a frame. Retry next tick.
             LastReadStatus = "Target read failed; retrying";
             return null;
         }
@@ -253,12 +291,9 @@ public sealed class EqMemoryReader : IDisposable
     {
         if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
         var name = raw.TrimEnd('\0', ' ');
-
-        // EQ spawn names commonly end with a numeric uniqueness suffix (a_goblin00).
         var end = name.Length;
         while (end > 0 && char.IsDigit(name[end - 1])) end--;
         name = name[..end];
-
         return name.Replace('_', ' ').Trim();
     }
 
@@ -306,6 +341,7 @@ public sealed class EqMemoryReader : IDisposable
         }
         _process?.Dispose();
         _process = null;
+        _windowHandle = IntPtr.Zero;
     }
 
     public void Dispose() => Detach();
@@ -320,6 +356,25 @@ public sealed class EqMemoryReader : IDisposable
         int HpCurrent,
         byte Type,
         byte Level);
+
+    private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(IntPtr hwnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int maxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowTextLength(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr OpenProcess(uint processAccess, bool inheritHandle, int processId);

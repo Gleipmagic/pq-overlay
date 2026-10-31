@@ -40,3 +40,11 @@ If Connection says **Access denied**, run the overlay at the same privilege leve
 ## Build
 
 The included GitHub Actions workflow builds a self-contained Windows x86 executable and uploads it as the `EQMobOverlay-win-x86` artifact.
+
+## If auto-detect cannot find EverQuest
+
+The control window now lists **all visible application windows**, not only processes named `eqgame.exe`.
+Choose the actual EverQuest/Project Quarm window from the list and click **Use selected window**.
+The entry shows the window title, process name and PID. This also works if a launcher or wrapper gives the client a different process name.
+
+If the correct EQ window appears but attachment says **Access denied**, run `EQMobOverlay.exe` as Administrator and try again.
