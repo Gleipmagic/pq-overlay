@@ -1,22 +1,16 @@
-Upload/replace these files in your pq-overlay repository, preserving the folder structure.
+Upload/replace ALL files from this package in your pq-overlay repository.
 
-Important new files:
-  ControlWindow.xaml
-  ControlWindow.xaml.cs
+V4 changes:
+- Adds manual PID entry: enter EQ's PID and click Attach to PID.
+- Window selector now includes visible untitled top-level windows.
+- Auto detect also scans running process names/titles more broadly for EQ/Quarm.
+- Preserves previous WPF/WinForms namespace build fixes.
 
-Important changed files:
-  App.xaml
-  App.xaml.cs
-  EQMobOverlay.csproj
-  EqMemoryReader.cs
-  MainWindow.xaml.cs
-  Models.cs
-  README.md
+To find the PID:
+1. Open Windows Task Manager.
+2. Open the Details tab.
+3. Find the actual EverQuest/Quarm game process.
+4. Note the number in the PID column.
+5. Enter that PID in EQ Mob Overlay and click Attach to PID.
 
-Keep:
-  .github/workflows/build.yml
-  MainWindow.xaml
-  NpcDatabase.cs
-  OverlaySettings.cs
-
-After committing, GitHub Actions should build a fresh EQMobOverlay-win-x86 artifact.
+If Connection says Access denied, run EQMobOverlay.exe as Administrator.

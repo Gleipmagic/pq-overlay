@@ -52,12 +52,10 @@ public sealed class EqMemoryReader : IDisposable
             {
                 if (hwnd == IntPtr.Zero || !IsWindowVisible(hwnd)) return true;
                 var titleLength = GetWindowTextLength(hwnd);
-                if (titleLength <= 0) return true;
-
-                var titleBuilder = new StringBuilder(titleLength + 1);
+                var titleBuilder = new StringBuilder(Math.Max(1, titleLength + 1));
                 GetWindowText(hwnd, titleBuilder, titleBuilder.Capacity);
                 var title = titleBuilder.ToString().Trim();
-                if (string.IsNullOrWhiteSpace(title)) return true;
+                if (string.IsNullOrWhiteSpace(title)) title = "(untitled window)";
 
                 GetWindowThreadProcessId(hwnd, out var rawPid);
                 var pid = unchecked((int)rawPid);
@@ -96,6 +94,15 @@ public sealed class EqMemoryReader : IDisposable
         return EnsureAttached();
     }
 
+    public bool SelectProcessByPid(int processId)
+    {
+        _preferredProcessId = processId;
+        _preferredWindowHandle = FindBestWindowForProcess(processId).ToInt64();
+        Detach();
+        LastAttachStatus = $"Manual PID selected: {processId}";
+        return EnsureAttached();
+    }
+
     public void UseAutoDetect()
     {
         _preferredProcessId = null;
@@ -125,7 +132,9 @@ public sealed class EqMemoryReader : IDisposable
                     return false;
                 }
 
-                var attached = TryAttach(selected, manual: true, new IntPtr(_preferredWindowHandle));
+                var selectedWindow = new IntPtr(_preferredWindowHandle);
+                if (selectedWindow == IntPtr.Zero) selectedWindow = FindBestWindowForProcess(selected.Id);
+                var attached = TryAttach(selected, manual: true, selectedWindow);
                 if (!attached) selected.Dispose();
                 return attached;
             }
@@ -159,11 +168,12 @@ public sealed class EqMemoryReader : IDisposable
             catch { }
         }
 
-        // Fallback for clients whose main window was not enumerable but whose process name really is eqgame.
-        Process[] exactCandidates;
+        // Broader process fallback. Some Quarm setups have unusual/untitled windows, so score
+        // every running process by process name and any main-window title before giving up.
+        Process[] allProcesses;
         try
         {
-            exactCandidates = Process.GetProcessesByName("eqgame").Where(p => !p.HasExited).ToArray();
+            allProcesses = Process.GetProcesses();
         }
         catch
         {
@@ -171,14 +181,74 @@ public sealed class EqMemoryReader : IDisposable
             return false;
         }
 
-        foreach (var candidate in exactCandidates)
+        var fallback = new List<(Process Process, int Score, IntPtr Window)>();
+        foreach (var candidate in allProcesses)
         {
-            if (TryAttach(candidate, manual: false, candidate.MainWindowHandle)) return true;
-            candidate.Dispose();
+            try
+            {
+                if (candidate.Id == Environment.ProcessId || candidate.HasExited)
+                {
+                    candidate.Dispose();
+                    continue;
+                }
+
+                var name = candidate.ProcessName ?? string.Empty;
+                string title;
+                try { title = candidate.MainWindowTitle ?? string.Empty; } catch { title = string.Empty; }
+                var score = 0;
+                if (name.Equals("eqgame", StringComparison.OrdinalIgnoreCase)) score += 100;
+                else if (name.Contains("eq", StringComparison.OrdinalIgnoreCase)) score += 20;
+                if (name.Contains("quarm", StringComparison.OrdinalIgnoreCase)) score += 80;
+                if (title.Contains("EverQuest", StringComparison.OrdinalIgnoreCase)) score += 90;
+                if (title.Contains("Quarm", StringComparison.OrdinalIgnoreCase)) score += 80;
+
+                if (score > 0)
+                    fallback.Add((candidate, score, FindBestWindowForProcess(candidate.Id)));
+                else
+                    candidate.Dispose();
+            }
+            catch
+            {
+                candidate.Dispose();
+            }
         }
 
-        LastAttachStatus = "No obvious EQ window found — choose EverQuest manually from the window list";
+        foreach (var item in fallback.OrderByDescending(x => x.Score))
+        {
+            if (TryAttach(item.Process, manual: false, item.Window))
+            {
+                foreach (var other in fallback)
+                    if (!ReferenceEquals(other.Process, item.Process)) other.Process.Dispose();
+                return true;
+            }
+            item.Process.Dispose();
+        }
+
+        LastAttachStatus = "No EQ client auto-detected — select a window or enter the PID manually";
         return false;
+    }
+
+    private static IntPtr FindBestWindowForProcess(int processId)
+    {
+        IntPtr first = IntPtr.Zero;
+        IntPtr visible = IntPtr.Zero;
+        IntPtr titledVisible = IntPtr.Zero;
+
+        EnumWindows((hwnd, _) =>
+        {
+            GetWindowThreadProcessId(hwnd, out var rawPid);
+            if (unchecked((int)rawPid) != processId) return true;
+
+            if (first == IntPtr.Zero) first = hwnd;
+            if (IsWindowVisible(hwnd) && visible == IntPtr.Zero) visible = hwnd;
+            if (IsWindowVisible(hwnd) && GetWindowTextLength(hwnd) > 0 && titledVisible == IntPtr.Zero)
+                titledVisible = hwnd;
+            return true;
+        }, IntPtr.Zero);
+
+        if (titledVisible != IntPtr.Zero) return titledVisible;
+        if (visible != IntPtr.Zero) return visible;
+        return first;
     }
 
     private static int CandidateScore(EqProcessCandidate candidate)

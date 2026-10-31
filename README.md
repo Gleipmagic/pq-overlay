@@ -1,3 +1,15 @@
+# EQ Mob Overlay V4
+
+Adds three EQ attachment methods:
+
+1. Auto Detect
+2. Select a top-level window (including untitled windows)
+3. Enter the EQ client PID manually
+
+For manual PID: open Windows Task Manager, choose **Details**, find the actual EverQuest client process, note its PID, enter that number in the overlay control window, then click **Attach to PID**.
+
+If attachment reports Access Denied, run EQMobOverlay as Administrator.
+
 # EQ Mob Overlay
 
 Standalone Windows x86 overlay for Project Quarm / the classic EQ client.

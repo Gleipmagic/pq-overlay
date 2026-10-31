@@ -50,6 +50,14 @@ public partial class MainWindow : Window
         return attached;
     }
 
+    public bool SelectEqProcessByPid(int pid)
+    {
+        var attached = _eq.SelectProcessByPid(pid);
+        _lastLookupKey = string.Empty;
+        _npc = null;
+        return attached;
+    }
+
     public void UseAutoDetect()
     {
         _eq.UseAutoDetect();

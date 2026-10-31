@@ -62,6 +62,23 @@ public partial class ControlWindow : Window
         RefreshStatus();
     }
 
+
+    private void UsePidButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!int.TryParse(PidBox.Text?.Trim(), out var pid) || pid <= 0)
+        {
+            ProcessHelp.Text = "Enter a valid numeric PID from Task Manager > Details.";
+            return;
+        }
+
+        var attached = _overlay.SelectEqProcessByPid(pid);
+        ProcessHelp.Text = attached
+            ? $"Attached directly to PID {pid}."
+            : $"Could not attach to PID {pid}. Check the Connection status below; try running the overlay as Administrator if access is denied.";
+        RefreshProcessList();
+        RefreshStatus();
+    }
+
     private void OverlayEnabledCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_syncingCheckbox) return;
@@ -86,7 +103,7 @@ public partial class ControlWindow : Window
         ProcessList.SelectedItem = select;
 
         if (processes.Count == 0)
-            ProcessHelp.Text = "No visible application windows found. If EQ is open, try running this overlay as Administrator and click Refresh.";
+            ProcessHelp.Text = "No top-level windows found. You can still enter the EQ client PID manually above.";
     }
 
     private void RefreshStatus()
