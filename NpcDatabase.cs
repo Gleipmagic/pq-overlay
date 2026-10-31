@@ -1,6 +1,6 @@
 using Microsoft.Data.Sqlite;
 using System.Net.Http;
-
+using System.IO;
 namespace EQMobOverlay;
 
 public sealed class NpcDatabase
