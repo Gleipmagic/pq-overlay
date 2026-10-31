@@ -107,6 +107,20 @@ public partial class ControlWindow : Window
         if (System.Windows.Application.Current is App app) app.SetTrayLockChecked(locked);
     }
 
+    private void NormalOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (NormalOpacityValue is not null) NormalOpacityValue.Text = $"{e.NewValue:0}%";
+        if (_syncingSettings) return;
+        _overlay.SetNormalOpacity(e.NewValue);
+    }
+
+    private void HoverOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (HoverOpacityValue is not null) HoverOpacityValue.Text = $"{e.NewValue:0}%";
+        if (_syncingSettings) return;
+        _overlay.SetHoverOpacity(e.NewValue);
+    }
+
     private void RefreshProcessList()
     {
         var previous = ProcessList.SelectedItem as EqProcessCandidate;
@@ -137,6 +151,10 @@ public partial class ControlWindow : Window
         OverlayEnabledCheck.IsChecked = status.OverlayEnabled;
         KeepVisibleCheck.IsChecked = status.KeepVisibleWhenInactive;
         LockOverlayCheck.IsChecked = status.Locked;
+        NormalOpacitySlider.Value = status.NormalOpacityPercent;
+        HoverOpacitySlider.Value = status.HoverOpacityPercent;
+        NormalOpacityValue.Text = $"{status.NormalOpacityPercent:0}%";
+        HoverOpacityValue.Text = $"{status.HoverOpacityPercent:0}%";
         _syncingSettings = false;
 
         if (System.Windows.Application.Current is App app)

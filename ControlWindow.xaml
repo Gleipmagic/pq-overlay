@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="EQ Mob Overlay"
-        Width="520" Height="560"
-        MinWidth="480" MinHeight="520"
+        Width="520" Height="650"
+        MinWidth="480" MinHeight="610"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="True">
     <Grid Margin="16">
@@ -76,6 +76,29 @@
                           Checked="LockOverlayCheck_Changed" Unchecked="LockOverlayCheck_Changed"/>
                 <TextBlock Margin="0,7,0,0" Foreground="#FF777777" TextWrapping="Wrap"
                            Text="Uncheck Lock to drag the panel and use the gold bottom-right resize handle. Re-lock when finished; position and size are saved."/>
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="135"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="44"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Not hovered opacity" VerticalAlignment="Center"/>
+                    <Slider x:Name="NormalOpacitySlider" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5"
+                            IsSnapToTickEnabled="False" ValueChanged="NormalOpacitySlider_ValueChanged"/>
+                    <TextBlock x:Name="NormalOpacityValue" Grid.Column="2" Text="85%" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+
+                    <TextBlock Grid.Row="2" Text="Hovered opacity" VerticalAlignment="Center"/>
+                    <Slider x:Name="HoverOpacitySlider" Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5"
+                            IsSnapToTickEnabled="False" ValueChanged="HoverOpacitySlider_ValueChanged"/>
+                    <TextBlock x:Name="HoverOpacityValue" Grid.Row="2" Grid.Column="2" Text="100%" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+                <TextBlock Margin="0,7,0,0" Foreground="#FF777777" TextWrapping="Wrap"
+                           Text="Set both to 100% for no fade. Set the normal value low (even 0%) and hover higher if you want the panel to appear mainly when your mouse is over it."/>
             </StackPanel>
         </Border>
 

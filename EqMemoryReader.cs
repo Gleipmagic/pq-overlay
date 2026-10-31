@@ -332,6 +332,7 @@ public sealed class EqMemoryReader : IDisposable
                 target.Value.ZoneId,
                 target.Value.SpawnId,
                 target.Value.Level,
+                self.Value.Level,
                 target.Value.HpCurrent,
                 target.Value.HpMax,
                 target.Value.Position,

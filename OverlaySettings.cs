@@ -7,10 +7,12 @@ public sealed class OverlaySettings
 {
     public double OffsetX { get; set; } = 30;
     public double OffsetY { get; set; } = 70;
-    public double OverlayWidth { get; set; } = 300;
-    public double OverlayHeight { get; set; } = 112;
+    public double OverlayWidth { get; set; } = 220;
+    public double OverlayHeight { get; set; } = 74;
     public bool Locked { get; set; } = true;
     public bool KeepVisibleWhenInactive { get; set; } = true;
+    public double NormalOpacityPercent { get; set; } = 85;
+    public double HoverOpacityPercent { get; set; } = 100;
 
     private static string SettingsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EQMobOverlay", "settings.json");

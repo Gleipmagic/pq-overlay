@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace EQMobOverlay;
@@ -15,9 +16,10 @@ public partial class MainWindow : Window
     private const int WS_EX_TRANSPARENT = 0x00000020;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
     private const int WS_EX_NOACTIVATE = 0x08000000;
-    private const double DesignWidth = 300.0;
-    private const double DesignHeight = 112.0;
-    private const double DesignAspect = DesignWidth / DesignHeight;
+    private const double MinOverlayWidth = 136.0;
+    private const double MinOverlayHeight = 34.0;
+    private const double MaxOverlayWidth = 650.0;
+    private const double MaxOverlayHeight = 245.0;
 
     private readonly EqMemoryReader _eq = new();
     private readonly NpcDatabase _db = new();
@@ -37,6 +39,8 @@ public partial class MainWindow : Window
     private bool _tickBusy;
     private bool _locked;
     private bool _keepVisibleWhenInactive;
+    private double _normalOpacityPercent;
+    private double _hoverOpacityPercent;
     private string _targetStatus = "No target read yet";
 
     public MainWindow()
@@ -44,12 +48,15 @@ public partial class MainWindow : Window
         InitializeComponent();
         _locked = _settings.Locked;
         _keepVisibleWhenInactive = _settings.KeepVisibleWhenInactive;
-        Width = Math.Clamp(_settings.OverlayWidth, 180, 650);
-        Height = Math.Clamp(_settings.OverlayHeight, 67, 245);
+        _normalOpacityPercent = Math.Clamp(_settings.NormalOpacityPercent, 0, 100);
+        _hoverOpacityPercent = Math.Clamp(_settings.HoverOpacityPercent, 0, 100);
+        Width = Math.Clamp(_settings.OverlayWidth, MinOverlayWidth, MaxOverlayWidth);
+        Height = Math.Clamp(_settings.OverlayHeight, MinOverlayHeight, MaxOverlayHeight);
 
         Loaded += MainWindow_Loaded;
         SourceInitialized += MainWindow_SourceInitialized;
         Closing += MainWindow_Closing;
+        SizeChanged += (_, _) => UpdateResponsiveLayout();
         _timer.Tick += Timer_Tick;
     }
 
@@ -88,6 +95,22 @@ public partial class MainWindow : Window
         _settings.Save();
     }
 
+    public void SetNormalOpacity(double percent)
+    {
+        _normalOpacityPercent = Math.Clamp(percent, 0, 100);
+        _settings.NormalOpacityPercent = _normalOpacityPercent;
+        _settings.Save();
+        UpdateOpacityFromCursor();
+    }
+
+    public void SetHoverOpacity(double percent)
+    {
+        _hoverOpacityPercent = Math.Clamp(percent, 0, 100);
+        _settings.HoverOpacityPercent = _hoverOpacityPercent;
+        _settings.Save();
+        UpdateOpacityFromCursor();
+    }
+
     public void SetLocked(bool locked)
     {
         _locked = locked;
@@ -111,7 +134,9 @@ public partial class MainWindow : Window
             _overlayEnabled,
             IsVisible,
             _keepVisibleWhenInactive,
-            _locked);
+            _locked,
+            _normalOpacityPercent,
+            _hoverOpacityPercent);
     }
 
     private void ClearLookup()
@@ -125,6 +150,8 @@ public partial class MainWindow : Window
         Left = 20;
         Top = 20;
         ApplyInteractionStyle();
+        UpdateResponsiveLayout();
+        UpdateOpacityFromCursor();
         _timer.Start();
 
         var progress = new Progress<string>(s =>
@@ -173,6 +200,7 @@ public partial class MainWindow : Window
             {
                 _targetStatus = "Waiting for a readable EQ client";
                 TargetName.Text = "Waiting for EverQuest…";
+                TargetName.Foreground = Brushes.White;
                 _targetStatus = _databaseReady ? _eq.LastAttachStatus : _db.Status;
                 ResetLiveValues();
                 Hide();
@@ -187,6 +215,7 @@ public partial class MainWindow : Window
             }
 
             KeepInsideEq(bounds);
+            UpdateOpacityFromCursor();
 
             var foreground = GetForegroundWindow();
             var overlayHwnd = new WindowInteropHelper(this).Handle;
@@ -206,6 +235,7 @@ public partial class MainWindow : Window
             {
                 _targetStatus = _eq.LastReadStatus;
                 TargetName.Text = "No target";
+                TargetName.Foreground = Brushes.White;
                 ClearLookup();
                 ResetLiveValues();
                 return;
@@ -213,6 +243,7 @@ public partial class MainWindow : Window
 
             var pct = target.HpPercent;
             TargetName.Text = target.DisplayName;
+            TargetName.Foreground = GetConBrush(target.PlayerLevel, target.Level);
             DistanceText.Text = $"{target.Distance:0} u";
             HealthText.Text = $"--   {pct:0}%";
             UpdateHealthBar(pct);
@@ -311,22 +342,17 @@ public partial class MainWindow : Window
         if (_locked || _eq.Process is null) return;
         _resizing = true;
 
-        var widthDeltaFromVertical = e.VerticalChange * DesignAspect;
-        var delta = Math.Abs(e.HorizontalChange) >= Math.Abs(widthDeltaFromVertical)
-            ? e.HorizontalChange
-            : widthDeltaFromVertical;
-
-        var minWidth = 180.0;
-        var maxWidth = 650.0;
+        var maxWidth = MaxOverlayWidth;
+        var maxHeight = MaxOverlayHeight;
         if (TryGetEqClientBounds(_eq.WindowHandle, out var bounds))
         {
-            maxWidth = Math.Min(maxWidth, Math.Max(minWidth, bounds.Right - Left));
-            maxWidth = Math.Min(maxWidth, Math.Max(minWidth, (bounds.Bottom - Top) * DesignAspect));
+            maxWidth = Math.Min(maxWidth, Math.Max(MinOverlayWidth, bounds.Right - Left));
+            maxHeight = Math.Min(maxHeight, Math.Max(MinOverlayHeight, bounds.Bottom - Top));
         }
 
-        var newWidth = Math.Clamp(Width + delta, minWidth, maxWidth);
-        Width = newWidth;
-        Height = newWidth / DesignAspect;
+        Width = Math.Clamp(Width + e.HorizontalChange, MinOverlayWidth, maxWidth);
+        Height = Math.Clamp(Height + e.VerticalChange, MinOverlayHeight, maxHeight);
+        UpdateResponsiveLayout();
         UpdateHealthBar(ParseDisplayedPercent());
     }
 
@@ -334,6 +360,76 @@ public partial class MainWindow : Window
     {
         _resizing = false;
         SavePositionAndSize();
+    }
+
+    private void UpdateResponsiveLayout()
+    {
+        if (!IsInitialized) return;
+        // At the smallest height the overlay intentionally becomes a resist-only strip.
+        var resistOnly = ActualHeight > 0 && ActualHeight < 56;
+        HeaderGrid.Visibility = resistOnly ? Visibility.Collapsed : Visibility.Visible;
+        HealthTrack.Visibility = resistOnly ? Visibility.Collapsed : Visibility.Visible;
+        HeaderSpacer.Height = new GridLength(resistOnly ? 0 : 3);
+        HealthSpacer.Height = new GridLength(resistOnly ? 0 : 3);
+        PanelRoot.Padding = new Thickness(resistOnly ? 3 : 4);
+    }
+
+    private void UpdateOpacityFromCursor()
+    {
+        if (!IsInitialized) return;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+
+        var hovered = false;
+        if (GetCursorPos(out var cursor) && GetWindowRect(hwnd, out var rect))
+            hovered = cursor.X >= rect.Left && cursor.X <= rect.Right &&
+                      cursor.Y >= rect.Top && cursor.Y <= rect.Bottom;
+
+        var percent = hovered ? _hoverOpacityPercent : _normalOpacityPercent;
+        Opacity = Math.Clamp(percent / 100.0, 0.0, 1.0);
+    }
+
+    private static Brush GetConBrush(byte playerLevel, byte targetLevel)
+    {
+        var diff = (int)targetLevel - playerLevel;
+        if (diff == 0) return Brushes.White;
+        if (diff >= 1 && diff <= 3) return new SolidColorBrush(Color.FromRgb(255, 230, 0));
+        if (diff >= 4) return new SolidColorBrush(Color.FromRgb(255, 55, 55));
+
+        // Old-EQ style con bands. Project Quarm exposes green/light-blue/blue/white/yellow/red;
+        // values that would be grey on newer clients are intentionally shown as green here.
+        (int lightBlueMin, int greenMin) = playerLevel switch
+        {
+            >= 58 => (-15, -20),
+            57 => (-15, -19),
+            >= 55 => (-14, -19),
+            >= 53 => (-14, -18),
+            52 => (-13, -18),
+            >= 49 => (-13, -17),
+            >= 47 => (-12, -16),
+            46 => (-11, -16),
+            45 => (-12, -15),
+            >= 43 => (-11, -15),
+            >= 41 => (-11, -14),
+            40 => (-10, -14),
+            >= 37 => (-10, -13),
+            >= 34 => (-9, -12),
+            33 => (-9, -11),
+            >= 31 => (-8, -11),
+            >= 29 => (-8, -10),
+            28 => (-7, -10),
+            >= 25 => (-7, -9),
+            >= 22 => (-6, -8),
+            21 => (-6, -7),
+            >= 16 => (int.MinValue, -6),
+            _ => (int.MinValue, -6)
+        };
+
+        if (diff >= -5) return new SolidColorBrush(Color.FromRgb(75, 120, 255));
+        if (lightBlueMin != int.MinValue && diff >= lightBlueMin)
+            return new SolidColorBrush(Color.FromRgb(80, 220, 255));
+        if (diff >= greenMin) return new SolidColorBrush(Color.FromRgb(45, 255, 45));
+        return new SolidColorBrush(Color.FromRgb(45, 255, 45));
     }
 
     private double ParseDisplayedPercent()
@@ -405,6 +501,10 @@ public partial class MainWindow : Window
 
     [DllImport("user32.dll")]
     private static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT point);
     [DllImport("user32.dll")]
     private static extern bool ClientToScreen(IntPtr hwnd, ref POINT point);
     [DllImport("user32.dll")]

@@ -30,7 +30,9 @@ public sealed record OverlayStatus(
     bool OverlayEnabled,
     bool OverlayVisible,
     bool KeepVisibleWhenInactive,
-    bool Locked);
+    bool Locked,
+    double NormalOpacityPercent,
+    double HoverOpacityPercent);
 
 public sealed record EqTargetSnapshot(
     string RawName,
@@ -38,6 +40,7 @@ public sealed record EqTargetSnapshot(
     uint ZoneId,
     ushort SpawnId,
     byte Level,
+    byte PlayerLevel,
     int HpCurrent,
     int HpMax,
     Vec3 Position,

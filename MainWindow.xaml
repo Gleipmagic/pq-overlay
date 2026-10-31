@@ -3,103 +3,100 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
         Title="EQ Mob Overlay"
-        Width="300" Height="96"
-        MinWidth="220" MinHeight="72"
+        Width="220" Height="74"
+        MinWidth="136" MinHeight="34"
         WindowStyle="None" ResizeMode="NoResize"
         AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" Topmost="True" ShowActivated="False">
     <Grid x:Name="WindowRoot">
-        <Viewbox Stretch="Uniform">
-            <Border x:Name="PanelRoot"
-                    Width="300" Height="96"
-                    Background="#ED121516" BorderBrush="#FF8E7752" BorderThickness="1"
-                    CornerRadius="3" Padding="7"
-                    MouseLeftButtonDown="PanelRoot_MouseLeftButtonDown"
-                    MouseMove="PanelRoot_MouseMove"
-                    MouseLeftButtonUp="PanelRoot_MouseLeftButtonUp">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="5"/>
-                        <RowDefinition Height="17"/>
-                        <RowDefinition Height="7"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+        <Border x:Name="PanelRoot"
+                Background="#ED121516" BorderBrush="#FF8E7752" BorderThickness="1"
+                CornerRadius="2" Padding="4"
+                MouseLeftButtonDown="PanelRoot_MouseLeftButtonDown"
+                MouseMove="PanelRoot_MouseMove"
+                MouseLeftButtonUp="PanelRoot_MouseLeftButtonUp">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition x:Name="HeaderRow" Height="Auto"/>
+                    <RowDefinition x:Name="HeaderSpacer" Height="3"/>
+                    <RowDefinition x:Name="HealthRow" Height="16"/>
+                    <RowDefinition x:Name="HealthSpacer" Height="3"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="TargetName" Text="Waiting for EverQuest…"
-                                   FontFamily="Segoe UI" FontSize="13" FontWeight="SemiBold" Foreground="#FFF0E7D5"
-                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                        <Border Grid.Column="1" Background="#CC242829" BorderBrush="#FF5E594F" BorderThickness="1"
-                                CornerRadius="2" Padding="5,1" Margin="7,0,0,0" VerticalAlignment="Center">
-                            <TextBlock x:Name="DistanceText" Text="-- u" FontFamily="Consolas" FontSize="10" Foreground="#FFFFFFFF"/>
-                        </Border>
-                    </Grid>
-
-
-                    <Border x:Name="HealthTrack" Grid.Row="2" Background="#FF292B2B"
-                            BorderBrush="#FF57534A" BorderThickness="1" CornerRadius="1" ClipToBounds="True">
-                        <Grid>
-                            <Border x:Name="HealthFill" HorizontalAlignment="Left" Background="#FF8C3C32" CornerRadius="1"/>
-                            <TextBlock x:Name="HealthText" Text="--   --%"
-                                       FontFamily="Consolas" FontSize="9.5" FontWeight="Bold"
-                                       Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
+                <Grid x:Name="HeaderGrid" Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="TargetName" Text="Waiting for EverQuest…"
+                               FontFamily="Segoe UI" FontSize="14" FontWeight="Bold" Foreground="#FFF0E7D5"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    <Border Grid.Column="1" Background="#CC242829" BorderBrush="#FF5E594F" BorderThickness="1"
+                            CornerRadius="2" Padding="4,0" Margin="5,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="DistanceText" Text="-- u" FontFamily="Consolas" FontSize="11"
+                                   FontWeight="Bold" Foreground="#FFFFFFFF"/>
                     </Border>
+                </Grid>
 
-                    <Grid Grid.Row="4" HorizontalAlignment="Left">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="38"/><ColumnDefinition Width="4"/>
-                            <ColumnDefinition Width="38"/><ColumnDefinition Width="4"/>
-                            <ColumnDefinition Width="38"/><ColumnDefinition Width="4"/>
-                            <ColumnDefinition Width="38"/><ColumnDefinition Width="4"/>
-                            <ColumnDefinition Width="38"/>
-                        </Grid.ColumnDefinitions>
+                <Border x:Name="HealthTrack" Grid.Row="2" Background="#FF292B2B"
+                        BorderBrush="#FF57534A" BorderThickness="1" CornerRadius="1" ClipToBounds="True">
+                    <Grid>
+                        <Border x:Name="HealthFill" HorizontalAlignment="Left" Background="#FF8C3C32" CornerRadius="1"/>
+                        <TextBlock x:Name="HealthText" Text="--   --%"
+                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                   Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
 
-                        <Grid Grid.Column="0" Width="38" Height="38">
-                            <Image Source="Assets/MR.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                            <TextBlock Text="{Binding Text, ElementName=MRText}" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="#FF101010" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,1,0,0"/>
-                            <TextBlock x:Name="MRText" Text="--" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="#FF20FF20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                        <Grid Grid.Column="2" Width="38" Height="38">
-                            <Image Source="Assets/CR.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                            <TextBlock Text="{Binding Text, ElementName=CRText}" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="#FF101010" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,1,0,0"/>
-                            <TextBlock x:Name="CRText" Text="--" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="#FF20FF20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                        <Grid Grid.Column="4" Width="38" Height="38">
-                            <Image Source="Assets/DR.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                            <TextBlock Text="{Binding Text, ElementName=DRText}" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="#FF101010" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,1,0,0"/>
-                            <TextBlock x:Name="DRText" Text="--" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="#FF20FF20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                        <Grid Grid.Column="6" Width="38" Height="38">
-                            <Image Source="Assets/FR.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                            <TextBlock Text="{Binding Text, ElementName=FRText}" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="#FF101010" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,1,0,0"/>
-                            <TextBlock x:Name="FRText" Text="--" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="#FF20FF20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                        <Grid Grid.Column="8" Width="38" Height="38">
-                            <Image Source="Assets/PR.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                            <TextBlock Text="{Binding Text, ElementName=PRText}" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="#FF101010" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,1,0,0"/>
-                            <TextBlock x:Name="PRText" Text="--" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="#FF20FF20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
+                <Grid x:Name="ResistGrid" Grid.Row="4" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="23"/><ColumnDefinition Width="3"/>
+                        <ColumnDefinition Width="23"/><ColumnDefinition Width="3"/>
+                        <ColumnDefinition Width="23"/><ColumnDefinition Width="3"/>
+                        <ColumnDefinition Width="23"/><ColumnDefinition Width="3"/>
+                        <ColumnDefinition Width="23"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0" Width="23" Height="23">
+                        <Image Source="Assets/MR.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                        <TextBlock Text="{Binding Text, ElementName=MRText}" FontFamily="Consolas" FontSize="9.5" FontWeight="Bold" Foreground="#FF101010" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,1,0,0"/>
+                        <TextBlock x:Name="MRText" Text="--" FontFamily="Consolas" FontSize="9.5" FontWeight="Bold" Foreground="#FF20FF20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Grid Grid.Column="2" Width="23" Height="23">
+                        <Image Source="Assets/CR.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                        <TextBlock Text="{Binding Text, ElementName=CRText}" FontFamily="Consolas" FontSize="9.5" FontWeight="Bold" Foreground="#FF101010" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,1,0,0"/>
+                        <TextBlock x:Name="CRText" Text="--" FontFamily="Consolas" FontSize="9.5" FontWeight="Bold" Foreground="#FF20FF20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Grid Grid.Column="4" Width="23" Height="23">
+                        <Image Source="Assets/DR.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                        <TextBlock Text="{Binding Text, ElementName=DRText}" FontFamily="Consolas" FontSize="9.5" FontWeight="Bold" Foreground="#FF101010" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,1,0,0"/>
+                        <TextBlock x:Name="DRText" Text="--" FontFamily="Consolas" FontSize="9.5" FontWeight="Bold" Foreground="#FF20FF20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Grid Grid.Column="6" Width="23" Height="23">
+                        <Image Source="Assets/FR.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                        <TextBlock Text="{Binding Text, ElementName=FRText}" FontFamily="Consolas" FontSize="9.5" FontWeight="Bold" Foreground="#FF101010" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,1,0,0"/>
+                        <TextBlock x:Name="FRText" Text="--" FontFamily="Consolas" FontSize="9.5" FontWeight="Bold" Foreground="#FF20FF20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Grid Grid.Column="8" Width="23" Height="23">
+                        <Image Source="Assets/PR.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                        <TextBlock Text="{Binding Text, ElementName=PRText}" FontFamily="Consolas" FontSize="9.5" FontWeight="Bold" Foreground="#FF101010" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,1,0,0"/>
+                        <TextBlock x:Name="PRText" Text="--" FontFamily="Consolas" FontSize="9.5" FontWeight="Bold" Foreground="#FF20FF20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Grid>
                 </Grid>
-            </Border>
-        </Viewbox>
+            </Grid>
+        </Border>
 
-        <Border x:Name="UnlockOutline" BorderBrush="#FFE0B45A" BorderThickness="2" CornerRadius="3"
+        <Border x:Name="UnlockOutline" BorderBrush="#FFE0B45A" BorderThickness="2" CornerRadius="2"
                 IsHitTestVisible="False" Visibility="Collapsed"/>
-        <primitives:Thumb x:Name="ResizeThumb" Width="16" Height="16"
+        <primitives:Thumb x:Name="ResizeThumb" Width="12" Height="12"
                           HorizontalAlignment="Right" VerticalAlignment="Bottom"
                           Cursor="SizeNWSE" Visibility="Collapsed"
                           DragDelta="ResizeThumb_DragDelta" DragCompleted="ResizeThumb_DragCompleted">
             <primitives:Thumb.Template>
                 <ControlTemplate TargetType="primitives:Thumb">
-                    <Border Background="#DDC79A43" BorderBrush="#FFF0D18D" BorderThickness="1" CornerRadius="2">
-                        <TextBlock Text="↘" FontSize="10" Foreground="#FF191919" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border Background="#DDC79A43" BorderBrush="#FFF0D18D" BorderThickness="1" CornerRadius="1">
+                        <TextBlock Text="↘" FontSize="8" Foreground="#FF191919" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                 </ControlTemplate>
             </primitives:Thumb.Template>

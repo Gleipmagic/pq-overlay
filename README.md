@@ -33,3 +33,12 @@ The included GitHub Actions workflow publishes a self-contained Windows x86 exec
 - Removed mob level and Spawn ID from the overlay.
 - Header now shows only target name and distance.
 - Reduced overlay height for a smaller profile.
+
+
+## V6 compact UI changes
+- Resize down to a resist-only strip; header/HP auto-hide at very small height.
+- 23x23 native EQ resist icons with centered values.
+- Larger bold target/distance/HP text.
+- Target name uses con color based on player and target levels.
+- Adjustable normal and hovered opacity (0-100%).
+- Overlay remains visible when EQ is not foreground when that option is enabled.
