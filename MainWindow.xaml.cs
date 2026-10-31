@@ -200,7 +200,7 @@ public partial class MainWindow : Window
             {
                 _targetStatus = "Waiting for a readable EQ client";
                 TargetName.Text = "Waiting for EverQuest…";
-                TargetName.Foreground = Brushes.White;
+                TargetName.Foreground = System.Windows.Media.Brushes.White;
                 _targetStatus = _databaseReady ? _eq.LastAttachStatus : _db.Status;
                 ResetLiveValues();
                 Hide();
@@ -235,7 +235,7 @@ public partial class MainWindow : Window
             {
                 _targetStatus = _eq.LastReadStatus;
                 TargetName.Text = "No target";
-                TargetName.Foreground = Brushes.White;
+                TargetName.Foreground = System.Windows.Media.Brushes.White;
                 ClearLookup();
                 ResetLiveValues();
                 return;
@@ -389,12 +389,12 @@ public partial class MainWindow : Window
         Opacity = Math.Clamp(percent / 100.0, 0.0, 1.0);
     }
 
-    private static Brush GetConBrush(byte playerLevel, byte targetLevel)
+    private static System.Windows.Media.Brush GetConBrush(byte playerLevel, byte targetLevel)
     {
         var diff = (int)targetLevel - playerLevel;
-        if (diff == 0) return Brushes.White;
-        if (diff >= 1 && diff <= 3) return new SolidColorBrush(Color.FromRgb(255, 230, 0));
-        if (diff >= 4) return new SolidColorBrush(Color.FromRgb(255, 55, 55));
+        if (diff == 0) return System.Windows.Media.Brushes.White;
+        if (diff >= 1 && diff <= 3) return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 230, 0));
+        if (diff >= 4) return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 55, 55));
 
         // Old-EQ style con bands. Project Quarm exposes green/light-blue/blue/white/yellow/red;
         // values that would be grey on newer clients are intentionally shown as green here.
@@ -425,11 +425,11 @@ public partial class MainWindow : Window
             _ => (int.MinValue, -6)
         };
 
-        if (diff >= -5) return new SolidColorBrush(Color.FromRgb(75, 120, 255));
+        if (diff >= -5) return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(75, 120, 255));
         if (lightBlueMin != int.MinValue && diff >= lightBlueMin)
-            return new SolidColorBrush(Color.FromRgb(80, 220, 255));
-        if (diff >= greenMin) return new SolidColorBrush(Color.FromRgb(45, 255, 45));
-        return new SolidColorBrush(Color.FromRgb(45, 255, 45));
+            return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(80, 220, 255));
+        if (diff >= greenMin) return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(45, 255, 45));
+        return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(45, 255, 45));
     }
 
     private double ParseDisplayedPercent()
