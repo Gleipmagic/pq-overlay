@@ -26,30 +26,153 @@ public sealed class EqMemoryReader : IDisposable
 
     private Process? _process;
     private IntPtr _handle;
+    private int? _preferredProcessId;
 
     public Process? Process => _process;
     public bool IsAttached => _process is { HasExited: false } && _handle != IntPtr.Zero;
+    public bool ManualSelection => _preferredProcessId.HasValue;
+    public int? PreferredProcessId => _preferredProcessId;
+    public string LastAttachStatus { get; private set; } = "Not attached";
+    public string LastReadStatus { get; private set; } = "No target read yet";
+
+    public IReadOnlyList<EqProcessCandidate> GetCandidates()
+    {
+        var result = new List<EqProcessCandidate>();
+        Process[] processes;
+        try
+        {
+            processes = Process.GetProcessesByName("eqgame");
+        }
+        catch
+        {
+            return result;
+        }
+
+        foreach (var process in processes)
+        {
+            try
+            {
+                if (process.HasExited) continue;
+                result.Add(new EqProcessCandidate(process.Id, process.MainWindowTitle));
+            }
+            catch { }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+
+        return result.OrderBy(p => p.ProcessId).ToArray();
+    }
+
+    public bool SelectProcess(int processId)
+    {
+        _preferredProcessId = processId;
+        Detach();
+        return EnsureAttached();
+    }
+
+    public void UseAutoDetect()
+    {
+        _preferredProcessId = null;
+        Detach();
+        LastAttachStatus = "Auto detect enabled";
+    }
 
     public bool EnsureAttached()
     {
-        if (IsAttached) return true;
-        Detach();
-
-        var candidates = Process.GetProcessesByName("eqgame")
-            .Where(p => !p.HasExited)
-            .OrderByDescending(p => p.MainWindowHandle != IntPtr.Zero)
-            .ToArray();
-
-        foreach (var candidate in candidates)
+        if (IsAttached)
         {
-            var handle = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, false, candidate.Id);
-            if (handle == IntPtr.Zero) continue;
-            _process = candidate;
-            _handle = handle;
-            return true;
+            if (!_preferredProcessId.HasValue || _process!.Id == _preferredProcessId.Value)
+                return true;
+            Detach();
+        }
+
+        if (_preferredProcessId.HasValue)
+        {
+            try
+            {
+                var selected = Process.GetProcessById(_preferredProcessId.Value);
+                if (selected.HasExited)
+                {
+                    selected.Dispose();
+                    LastAttachStatus = "Selected EQ process has exited";
+                    return false;
+                }
+
+                if (!selected.ProcessName.Equals("eqgame", StringComparison.OrdinalIgnoreCase))
+                {
+                    selected.Dispose();
+                    LastAttachStatus = "Selected process is not eqgame.exe";
+                    return false;
+                }
+
+                var attached = TryAttach(selected, manual: true);
+                if (!attached) selected.Dispose();
+                return attached;
+            }
+            catch (ArgumentException)
+            {
+                LastAttachStatus = "Selected EQ process is no longer running";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                LastAttachStatus = $"Could not open selected EQ: {ex.Message}";
+                return false;
+            }
+        }
+
+        Process[] candidates;
+        try
+        {
+            candidates = Process.GetProcessesByName("eqgame")
+                .Where(p => !p.HasExited)
+                .OrderByDescending(p => p.MainWindowHandle != IntPtr.Zero)
+                .ToArray();
+        }
+        catch
+        {
+            LastAttachStatus = "Could not enumerate eqgame.exe";
+            return false;
+        }
+
+        if (candidates.Length == 0)
+        {
+            LastAttachStatus = "No running eqgame.exe found";
+            return false;
+        }
+
+        for (var i = 0; i < candidates.Length; i++)
+        {
+            var candidate = candidates[i];
+            if (TryAttach(candidate, manual: false))
+            {
+                for (var j = i + 1; j < candidates.Length; j++) candidates[j].Dispose();
+                return true;
+            }
+            candidate.Dispose();
         }
 
         return false;
+    }
+
+    private bool TryAttach(Process candidate, bool manual)
+    {
+        var handle = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, false, candidate.Id);
+        if (handle == IntPtr.Zero)
+        {
+            var error = Marshal.GetLastWin32Error();
+            LastAttachStatus = error == 5
+                ? "Access denied opening EQ — try running the overlay as Administrator"
+                : $"Could not open EQ process (Windows error {error})";
+            return false;
+        }
+
+        _process = candidate;
+        _handle = handle;
+        LastAttachStatus = $"Attached to eqgame.exe PID {candidate.Id}" + (manual ? " (manual)" : " (auto)");
+        return true;
     }
 
     public EqTargetSnapshot? ReadTarget()
@@ -60,18 +183,40 @@ public sealed class EqMemoryReader : IDisposable
         {
             uint selfPtr = ReadUInt32(SelfPointerAddress);
             uint targetPtr = ReadUInt32(TargetPointerAddress);
-            if (selfPtr == 0 || targetPtr == 0) return null;
+            if (selfPtr == 0)
+            {
+                LastReadStatus = "Player pointer unavailable";
+                return null;
+            }
+            if (targetPtr == 0)
+            {
+                LastReadStatus = "No target selected";
+                return null;
+            }
 
             var self = ReadEntity(selfPtr);
             var target = ReadEntity(targetPtr);
-            if (self is null || target is null || target.Value.StructType != 0x03) return null;
+            if (self is null || target is null || target.Value.StructType != 0x03)
+            {
+                LastReadStatus = "Target pointer could not be decoded";
+                return null;
+            }
 
-            // Type 2/3 are corpse-ish/non-live entities in this client. We keep players/NPCs only.
-            if (target.Value.Type > 1) return null;
+            // Type 2/3 are corpse-ish/non-live entities in this client. Keep players/NPCs only.
+            if (target.Value.Type > 1)
+            {
+                LastReadStatus = "Target is not a live NPC/player";
+                return null;
+            }
 
             var cleaned = CleanEqName(target.Value.Name);
-            if (string.IsNullOrWhiteSpace(cleaned)) return null;
+            if (string.IsNullOrWhiteSpace(cleaned))
+            {
+                LastReadStatus = "Target name was empty";
+                return null;
+            }
 
+            LastReadStatus = $"Reading target: {cleaned}";
             return new EqTargetSnapshot(
                 target.Value.Name,
                 cleaned,
@@ -86,12 +231,14 @@ public sealed class EqMemoryReader : IDisposable
         }
         catch (Win32Exception)
         {
+            LastReadStatus = "Lost access to EQ process";
             Detach();
             return null;
         }
         catch
         {
             // A zoning/client transition can invalidate pointers for a frame. Retry next tick.
+            LastReadStatus = "Target read failed; retrying";
             return null;
         }
     }
@@ -112,9 +259,7 @@ public sealed class EqMemoryReader : IDisposable
         while (end > 0 && char.IsDigit(name[end - 1])) end--;
         name = name[..end];
 
-        // Present underscore-separated internal names the way the player sees them.
-        name = name.Replace('_', ' ').Trim();
-        return name;
+        return name.Replace('_', ' ').Trim();
     }
 
     private EntityData? ReadEntity(uint address)

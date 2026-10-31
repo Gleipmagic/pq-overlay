@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.IO;
+
 namespace EQMobOverlay;
 
 public sealed class OverlaySettings

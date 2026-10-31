@@ -27,6 +27,9 @@ public partial class MainWindow : Window
     private NpcInfo? _npc;
     private CancellationTokenSource? _lookupCts;
     private bool _databaseReady;
+    private bool _overlayEnabled = true;
+    private bool _tickBusy;
+    private string _targetStatus = "No target read yet";
 
     public MainWindow()
     {
@@ -37,13 +40,57 @@ public partial class MainWindow : Window
         _timer.Tick += Timer_Tick;
     }
 
+    public IReadOnlyList<EqProcessCandidate> GetEqProcesses() => _eq.GetCandidates();
+
+    public bool SelectEqProcess(int processId)
+    {
+        var attached = _eq.SelectProcess(processId);
+        _lastLookupKey = string.Empty;
+        _npc = null;
+        return attached;
+    }
+
+    public void UseAutoDetect()
+    {
+        _eq.UseAutoDetect();
+        _lastLookupKey = string.Empty;
+        _npc = null;
+    }
+
+    public void SetOverlayEnabled(bool enabled)
+    {
+        _overlayEnabled = enabled;
+        if (!enabled) Hide();
+    }
+
+    public OverlayStatus GetStatus()
+    {
+        int? pid = null;
+        try { pid = _eq.Process?.Id; } catch { }
+
+        return new OverlayStatus(
+            _eq.IsAttached,
+            pid,
+            _eq.ManualSelection,
+            _eq.LastAttachStatus,
+            _targetStatus,
+            _db.Status,
+            _overlayEnabled,
+            IsVisible);
+    }
+
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         Left = 20;
         Top = 20;
         _timer.Start();
 
-        var progress = new Progress<string>(s => TargetSubline.Text = s);
+        var progress = new Progress<string>(s =>
+        {
+            if (string.IsNullOrWhiteSpace(TargetSubline.Text) || TargetSubline.Text.Contains("database", StringComparison.OrdinalIgnoreCase))
+                TargetSubline.Text = s;
+        });
+
         try
         {
             await _db.EnsureReadyAsync(progress);
@@ -65,80 +112,98 @@ public partial class MainWindow : Window
 
     private async void Timer_Tick(object? sender, EventArgs e)
     {
-        if (!_eq.EnsureAttached() || _eq.Process is null)
+        if (_tickBusy) return;
+        _tickBusy = true;
+        try
         {
-            TargetName.Text = "Waiting for EverQuest…";
-            TargetSubline.Text = _databaseReady ? "Start eqgame.exe" : _db.Status;
-            ResetLiveValues();
-            return;
-        }
-
-        if (!TryGetEqClientBounds(_eq.Process, out var bounds))
-        {
-            Visibility = Visibility.Hidden;
-            return;
-        }
-
-        KeepInsideEq(bounds);
-
-        var foreground = GetForegroundWindow();
-        var overlayHwnd = new WindowInteropHelper(this).Handle;
-        if (foreground != _eq.Process.MainWindowHandle && foreground != overlayHwnd)
-        {
-            Visibility = Visibility.Hidden;
-            return;
-        }
-        Visibility = Visibility.Visible;
-
-        var target = _eq.ReadTarget();
-        if (target is null)
-        {
-            TargetName.Text = "No target";
-            TargetSubline.Text = _databaseReady ? "Drag this panel anywhere inside EQ" : _db.Status;
-            _npc = null;
-            _lastLookupKey = string.Empty;
-            ResetLiveValues();
-            return;
-        }
-
-        TargetName.Text = target.DisplayName;
-        TargetSubline.Text = $"Lv {target.Level}   •   Spawn {target.SpawnId}";
-        DistanceText.Text = $"{target.Distance:0} u";
-
-        var pct = target.HpPercent;
-        HpText.Text = $"HP {pct:0}%";
-        UpdateHealthBar(pct);
-
-        var lookupKey = $"{target.ZoneId}:{EqMemoryReader.NormalizeNpcName(target.RawName)}";
-        if (_databaseReady && lookupKey != _lastLookupKey)
-        {
-            _lastLookupKey = lookupKey;
-            _npc = null;
-            _lookupCts?.Cancel();
-            _lookupCts?.Dispose();
-            _lookupCts = new CancellationTokenSource();
-            try
+            if (!_eq.EnsureAttached() || _eq.Process is null)
             {
-                _npc = await _db.FindAsync(target.RawName, target.ZoneId, _lookupCts.Token);
+                _targetStatus = "Waiting for a readable EQ client";
+                TargetName.Text = "Waiting for EverQuest…";
+                TargetSubline.Text = _databaseReady ? _eq.LastAttachStatus : _db.Status;
+                ResetLiveValues();
+                Hide();
+                return;
             }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) { Debug.WriteLine(ex); }
-        }
 
-        if (_npc is not null)
-        {
-            var estimated = (long)Math.Round(_npc.MaxHp * pct / 100.0);
-            EstimatedHpText.Text = $"~ {estimated:N0} / {_npc.MaxHp:N0}";
-            MRText.Text = _npc.MR.ToString();
-            CRText.Text = _npc.CR.ToString();
-            DRText.Text = _npc.DR.ToString();
-            FRText.Text = _npc.FR.ToString();
-            PRText.Text = _npc.PR.ToString();
+            if (!TryGetEqClientBounds(_eq.Process, out var bounds))
+            {
+                _targetStatus = "EQ window is minimized or has no usable client area";
+                Hide();
+                return;
+            }
+
+            KeepInsideEq(bounds);
+
+            var foreground = GetForegroundWindow();
+            var overlayHwnd = new WindowInteropHelper(this).Handle;
+            var shouldShow = _overlayEnabled &&
+                             (foreground == _eq.Process.MainWindowHandle || foreground == overlayHwnd);
+            if (shouldShow)
+            {
+                if (!IsVisible) Show();
+            }
+            else if (IsVisible)
+            {
+                Hide();
+            }
+
+            var target = _eq.ReadTarget();
+            if (target is null)
+            {
+                _targetStatus = _eq.LastReadStatus;
+                TargetName.Text = "No target";
+                TargetSubline.Text = _databaseReady ? "Select a mob in EQ" : _db.Status;
+                _npc = null;
+                _lastLookupKey = string.Empty;
+                ResetLiveValues();
+                return;
+            }
+
+            _targetStatus = $"{target.DisplayName} — {target.HpPercent:0}% HP — {target.Distance:0} units";
+            TargetName.Text = target.DisplayName;
+            TargetSubline.Text = $"Lv {target.Level}   •   Spawn {target.SpawnId}";
+            DistanceText.Text = $"{target.Distance:0} u";
+
+            var pct = target.HpPercent;
+            HpText.Text = $"HP {pct:0}%";
+            UpdateHealthBar(pct);
+
+            var lookupKey = $"{target.ZoneId}:{EqMemoryReader.NormalizeNpcName(target.RawName)}";
+            if (_databaseReady && lookupKey != _lastLookupKey)
+            {
+                _lastLookupKey = lookupKey;
+                _npc = null;
+                _lookupCts?.Cancel();
+                _lookupCts?.Dispose();
+                _lookupCts = new CancellationTokenSource();
+                try
+                {
+                    _npc = await _db.FindAsync(target.RawName, target.ZoneId, _lookupCts.Token);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex) { Debug.WriteLine(ex); }
+            }
+
+            if (_npc is not null)
+            {
+                var estimated = (long)Math.Round(_npc.MaxHp * pct / 100.0);
+                EstimatedHpText.Text = $"~ {estimated:N0} / {_npc.MaxHp:N0}";
+                MRText.Text = _npc.MR.ToString();
+                CRText.Text = _npc.CR.ToString();
+                DRText.Text = _npc.DR.ToString();
+                FRText.Text = _npc.FR.ToString();
+                PRText.Text = _npc.PR.ToString();
+            }
+            else
+            {
+                EstimatedHpText.Text = "~ -- / --";
+                MRText.Text = CRText.Text = DRText.Text = FRText.Text = PRText.Text = "--";
+            }
         }
-        else
+        finally
         {
-            EstimatedHpText.Text = "~ -- / --";
-            MRText.Text = CRText.Text = DRText.Text = FRText.Text = PRText.Text = "--";
+            _tickBusy = false;
         }
     }
 
@@ -203,7 +268,6 @@ public partial class MainWindow : Window
     {
         if (!_dragging)
         {
-            // Follow the EQ client when it moves. First placement uses saved client-relative coordinates.
             var desiredLeft = bounds.Left + _settings.OffsetX;
             var desiredTop = bounds.Top + _settings.OffsetY;
             Left = Math.Clamp(desiredLeft, bounds.Left, Math.Max(bounds.Left, bounds.Right - ActualWidth));

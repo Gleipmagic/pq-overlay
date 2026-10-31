@@ -1,0 +1,22 @@
+Upload/replace these files in your pq-overlay repository, preserving the folder structure.
+
+Important new files:
+  ControlWindow.xaml
+  ControlWindow.xaml.cs
+
+Important changed files:
+  App.xaml
+  App.xaml.cs
+  EQMobOverlay.csproj
+  EqMemoryReader.cs
+  MainWindow.xaml.cs
+  Models.cs
+  README.md
+
+Keep:
+  .github/workflows/build.yml
+  MainWindow.xaml
+  NpcDatabase.cs
+  OverlaySettings.cs
+
+After committing, GitHub Actions should build a fresh EQMobOverlay-win-x86 artifact.
