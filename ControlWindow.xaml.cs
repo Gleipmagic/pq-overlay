@@ -67,7 +67,7 @@ public partial class ControlWindow : Window
         if (_syncingCheckbox) return;
         var enabled = OverlayEnabledCheck.IsChecked == true;
         _overlay.SetOverlayEnabled(enabled);
-        if (Application.Current is App app) app.SetTrayOverlayChecked(enabled);
+        if (System.Windows.Application.Current is App app) app.SetTrayOverlayChecked(enabled);
     }
 
     private void RefreshProcessList()
@@ -97,7 +97,7 @@ public partial class ControlWindow : Window
         DatabaseStatus.Text = status.DatabaseText;
         SyncOverlayCheckbox(status.OverlayEnabled);
 
-        if (Application.Current is App app)
+        if (System.Windows.Application.Current is App app)
         {
             app.UpdateTrayText(status.Attached && status.ProcessId.HasValue
                 ? $"EQ Mob Overlay — EQ PID {status.ProcessId.Value}"
