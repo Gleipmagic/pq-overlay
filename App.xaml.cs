@@ -10,6 +10,7 @@ public partial class App : System.Windows.Application
     private ControlWindow? _control;
     private Forms.NotifyIcon? _trayIcon;
     private Forms.ToolStripMenuItem? _overlayMenuItem;
+    private Forms.ToolStripMenuItem? _lockMenuItem;
     private bool _exiting;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -22,8 +23,6 @@ public partial class App : System.Windows.Application
 
         CreateTrayIcon();
 
-        // Create the overlay HWND immediately so its timer and EQ tracking are alive,
-        // then hide it until the selected EQ window is actually foreground.
         _overlay.Show();
         _overlay.Hide();
         _control.Show();
@@ -46,7 +45,7 @@ public partial class App : System.Windows.Application
             _control?.RefreshNow();
         }));
 
-        _overlayMenuItem = new Forms.ToolStripMenuItem("Show overlay while EQ is active")
+        _overlayMenuItem = new Forms.ToolStripMenuItem("Show mob overlay")
         {
             Checked = true,
             CheckOnClick = true
@@ -58,6 +57,19 @@ public partial class App : System.Windows.Application
             _control?.SyncOverlayCheckbox(_overlayMenuItem.Checked);
         });
         menu.Items.Add(_overlayMenuItem);
+
+        _lockMenuItem = new Forms.ToolStripMenuItem("Lock overlay position / size")
+        {
+            Checked = true,
+            CheckOnClick = true
+        };
+        _lockMenuItem.CheckedChanged += (_, _) => Dispatcher.Invoke(() =>
+        {
+            if (_overlay is null || _lockMenuItem is null) return;
+            _overlay.SetLocked(_lockMenuItem.Checked);
+            _control?.SyncLockCheckbox(_lockMenuItem.Checked);
+        });
+        menu.Items.Add(_lockMenuItem);
 
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Dispatcher.Invoke(ExitApplication));
@@ -81,10 +93,15 @@ public partial class App : System.Windows.Application
             _overlayMenuItem.Checked = enabled;
     }
 
+    public void SetTrayLockChecked(bool locked)
+    {
+        if (_lockMenuItem is not null && _lockMenuItem.Checked != locked)
+            _lockMenuItem.Checked = locked;
+    }
+
     public void UpdateTrayText(string text)
     {
         if (_trayIcon is null) return;
-        // NotifyIcon.Text is limited to 63 characters on older Windows shells.
         _trayIcon.Text = string.IsNullOrWhiteSpace(text)
             ? "EQ Mob Overlay"
             : text[..Math.Min(text.Length, 63)];

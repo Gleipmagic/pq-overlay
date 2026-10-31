@@ -9,7 +9,7 @@ public partial class ControlWindow : Window
     private readonly MainWindow _overlay;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private bool _allowClose;
-    private bool _syncingCheckbox;
+    private bool _syncingSettings;
 
     public ControlWindow(MainWindow overlay)
     {
@@ -35,9 +35,16 @@ public partial class ControlWindow : Window
 
     public void SyncOverlayCheckbox(bool enabled)
     {
-        _syncingCheckbox = true;
+        _syncingSettings = true;
         OverlayEnabledCheck.IsChecked = enabled;
-        _syncingCheckbox = false;
+        _syncingSettings = false;
+    }
+
+    public void SyncLockCheckbox(bool locked)
+    {
+        _syncingSettings = true;
+        LockOverlayCheck.IsChecked = locked;
+        _syncingSettings = false;
     }
 
     private void RefreshButton_Click(object sender, RoutedEventArgs e) => RefreshProcessList();
@@ -58,10 +65,9 @@ public partial class ControlWindow : Window
     private void AutoButton_Click(object sender, RoutedEventArgs e)
     {
         _overlay.UseAutoDetect();
-        ProcessHelp.Text = "Auto detect enabled. The app will prefer windows named EverQuest/Project Quarm or processes named eqgame.";
+        ProcessHelp.Text = "Auto detect enabled.";
         RefreshStatus();
     }
-
 
     private void UsePidButton_Click(object sender, RoutedEventArgs e)
     {
@@ -74,17 +80,31 @@ public partial class ControlWindow : Window
         var attached = _overlay.SelectEqProcessByPid(pid);
         ProcessHelp.Text = attached
             ? $"Attached directly to PID {pid}."
-            : $"Could not attach to PID {pid}. Check the Connection status below; try running the overlay as Administrator if access is denied.";
+            : $"Could not attach to PID {pid}. Try running the overlay as Administrator if access is denied.";
         RefreshProcessList();
         RefreshStatus();
     }
 
     private void OverlayEnabledCheck_Changed(object sender, RoutedEventArgs e)
     {
-        if (_syncingCheckbox) return;
+        if (_syncingSettings) return;
         var enabled = OverlayEnabledCheck.IsChecked == true;
         _overlay.SetOverlayEnabled(enabled);
         if (System.Windows.Application.Current is App app) app.SetTrayOverlayChecked(enabled);
+    }
+
+    private void KeepVisibleCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingSettings) return;
+        _overlay.SetKeepVisibleWhenInactive(KeepVisibleCheck.IsChecked == true);
+    }
+
+    private void LockOverlayCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingSettings) return;
+        var locked = LockOverlayCheck.IsChecked == true;
+        _overlay.SetLocked(locked);
+        if (System.Windows.Application.Current is App app) app.SetTrayLockChecked(locked);
     }
 
     private void RefreshProcessList()
@@ -112,10 +132,17 @@ public partial class ControlWindow : Window
         ConnectionStatus.Text = status.ConnectionText;
         TargetStatus.Text = status.TargetText;
         DatabaseStatus.Text = status.DatabaseText;
-        SyncOverlayCheckbox(status.OverlayEnabled);
+
+        _syncingSettings = true;
+        OverlayEnabledCheck.IsChecked = status.OverlayEnabled;
+        KeepVisibleCheck.IsChecked = status.KeepVisibleWhenInactive;
+        LockOverlayCheck.IsChecked = status.Locked;
+        _syncingSettings = false;
 
         if (System.Windows.Application.Current is App app)
         {
+            app.SetTrayOverlayChecked(status.OverlayEnabled);
+            app.SetTrayLockChecked(status.Locked);
             app.UpdateTrayText(status.Attached && status.ProcessId.HasValue
                 ? $"EQ Mob Overlay — EQ PID {status.ProcessId.Value}"
                 : "EQ Mob Overlay — waiting for EQ");

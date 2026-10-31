@@ -6,7 +6,6 @@ namespace EQMobOverlay;
 
 public sealed class NpcDatabase
 {
-    // Public Project Quarm database release maintained by PQ Companion.
     private const string DatabaseUrl = "https://github.com/jasonsoprovich/pq-companion/releases/download/data-latest/quarm.db";
 
     private readonly string _dataDir = Path.Combine(
@@ -57,15 +56,22 @@ public sealed class NpcDatabase
 
         var s = _shape;
         var idExpr = s.Id is null ? "0" : Q(s.Id);
-        var order = s.Id is null
-            ? $"ORDER BY {Q(s.Hp)} DESC"
-            : $"ORDER BY CASE WHEN {Q(s.Id)} BETWEEN @zoneBase AND @zoneEnd THEN 0 ELSE 1 END, {Q(s.Hp)} DESC";
+        var normalizedDb = $"lower(trim(replace(replace(replace({Q(s.Name)}, '#', ''), '_', ' '), '  ', ' ')))";
+        var zoneOrder = s.Id is null
+            ? "0"
+            : $"CASE WHEN {Q(s.Id)} BETWEEN @zoneBase AND @zoneEnd THEN 0 ELSE 1 END";
 
+        // Exact match first. The prefix fallback also supports older builds that only read
+        // the first 30 characters of long EQ target names.
         var sql = $@"
 SELECT {idExpr}, {Q(s.Name)}, {Q(s.Hp)}, {Q(s.MR)}, {Q(s.CR)}, {Q(s.DR)}, {Q(s.FR)}, {Q(s.PR)}
 FROM {Q(s.Table)}
-WHERE lower(trim(replace(replace(replace({Q(s.Name)}, '#', ''), '_', ' '), '  ', ' '))) = @name
-{order}
+WHERE {normalizedDb} = @name
+   OR (length(@name) >= 24 AND ({normalizedDb} LIKE @name || '%' OR @name LIKE {normalizedDb} || '%'))
+ORDER BY CASE WHEN {normalizedDb} = @name THEN 0 ELSE 1 END,
+         {zoneOrder},
+         abs(length({normalizedDb}) - length(@name)),
+         {Q(s.Hp)} DESC
 LIMIT 1;";
 
         await using var command = connection.CreateCommand();

@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="EQ Mob Overlay"
-        Width="520" Height="455"
-        MinWidth="480" MinHeight="420"
+        Width="520" Height="560"
+        MinWidth="480" MinHeight="520"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="True">
     <Grid Margin="16">
@@ -21,7 +21,7 @@
 
         <StackPanel Grid.Row="0">
             <TextBlock Text="EQ Mob Overlay" FontSize="20" FontWeight="SemiBold"/>
-            <TextBlock Text="The overlay auto-detects EQ. If that fails, select the EverQuest window or enter its PID manually."
+            <TextBlock Text="Auto-detect EQ, select a window, or enter the client PID manually."
                        Margin="0,4,0,0" Foreground="#FF666666" TextWrapping="Wrap"/>
         </StackPanel>
 
@@ -42,7 +42,7 @@
                     <Button x:Name="AutoButton" Content="Auto Detect" Margin="8,0,0,0" Padding="14,5" Click="AutoButton_Click"/>
                 </StackPanel>
                 <TextBlock x:Name="ProcessHelp" Margin="0,7,0,0" Foreground="#FF777777" TextWrapping="Wrap"
-                           Text="The list includes visible top-level windows, including untitled windows. Choose EverQuest/Quarm by process name, title, or PID."/>
+                           Text="Choose EverQuest/Quarm by process name, title, or PID."/>
             </StackPanel>
         </Border>
 
@@ -59,22 +59,27 @@
                     <Button x:Name="UsePidButton" Grid.Column="1" Content="Attach to PID" Margin="8,0,0,0" Padding="14,5"
                             Click="UsePidButton_Click"/>
                 </Grid>
-                <TextBlock Margin="0,7,0,0" Foreground="#FF777777" TextWrapping="Wrap"
-                           Text="This bypasses name/title detection. In Task Manager, open Details and use the PID for the actual EverQuest client process."/>
-            </StackPanel>
-        </Border>
-
-        <Border Grid.Row="8" BorderBrush="#FFD0D0D0" BorderThickness="1" CornerRadius="4" Padding="12">
-            <StackPanel>
-                <CheckBox x:Name="OverlayEnabledCheck" Content="Show mob overlay while the selected EQ window is active"
-                          IsChecked="True" Checked="OverlayEnabledCheck_Changed" Unchecked="OverlayEnabledCheck_Changed"/>
-                <TextBlock Margin="0,8,0,0" Foreground="#FF666666" TextWrapping="Wrap">
-                    The mob panel stays constrained to the selected EverQuest client area. The control window remains available from the taskbar and system tray.
-                </TextBlock>
             </StackPanel>
         </Border>
 
         <Border Grid.Row="6" BorderBrush="#FFD0D0D0" BorderThickness="1" CornerRadius="4" Padding="12">
+            <StackPanel>
+                <TextBlock Text="Overlay behaviour" FontWeight="SemiBold"/>
+                <CheckBox x:Name="OverlayEnabledCheck" Content="Show mob overlay"
+                          Margin="0,8,0,0" IsChecked="True"
+                          Checked="OverlayEnabledCheck_Changed" Unchecked="OverlayEnabledCheck_Changed"/>
+                <CheckBox x:Name="KeepVisibleCheck" Content="Keep overlay visible when EQ is not the foreground window"
+                          Margin="0,7,0,0" IsChecked="True"
+                          Checked="KeepVisibleCheck_Changed" Unchecked="KeepVisibleCheck_Changed"/>
+                <CheckBox x:Name="LockOverlayCheck" Content="Lock overlay position and size (click-through)"
+                          Margin="0,7,0,0" IsChecked="True"
+                          Checked="LockOverlayCheck_Changed" Unchecked="LockOverlayCheck_Changed"/>
+                <TextBlock Margin="0,7,0,0" Foreground="#FF777777" TextWrapping="Wrap"
+                           Text="Uncheck Lock to drag the panel and use the gold bottom-right resize handle. Re-lock when finished; position and size are saved."/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="8" BorderBrush="#FFD0D0D0" BorderThickness="1" CornerRadius="4" Padding="12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="110"/>

@@ -373,7 +373,7 @@ public sealed class EqMemoryReader : IDisposable
         if (buffer.Length != EntityReadSize) return null;
 
         byte structType = buffer[0];
-        var name = Encoding.ASCII.GetString(buffer, EntityName, 30).Split('\0')[0];
+        var name = Encoding.ASCII.GetString(buffer, EntityName, 64).Split('\0')[0];
         uint zoneId = BitConverter.ToUInt32(buffer, EntityZoneId);
         float x = BitConverter.ToSingle(buffer, EntityPosition + 0);
         float y = BitConverter.ToSingle(buffer, EntityPosition + 4);

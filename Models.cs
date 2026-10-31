@@ -28,7 +28,9 @@ public sealed record OverlayStatus(
     string TargetText,
     string DatabaseText,
     bool OverlayEnabled,
-    bool OverlayVisible);
+    bool OverlayVisible,
+    bool KeepVisibleWhenInactive,
+    bool Locked);
 
 public sealed record EqTargetSnapshot(
     string RawName,

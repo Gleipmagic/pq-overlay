@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -11,8 +12,12 @@ namespace EQMobOverlay;
 public partial class MainWindow : Window
 {
     private const int GWL_EXSTYLE = -20;
+    private const int WS_EX_TRANSPARENT = 0x00000020;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
     private const int WS_EX_NOACTIVATE = 0x08000000;
+    private const double DesignWidth = 300.0;
+    private const double DesignHeight = 112.0;
+    private const double DesignAspect = DesignWidth / DesignHeight;
 
     private readonly EqMemoryReader _eq = new();
     private readonly NpcDatabase _db = new();
@@ -20,6 +25,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
 
     private bool _dragging;
+    private bool _resizing;
     private System.Windows.Point _dragStartMouse;
     private double _dragStartLeft;
     private double _dragStartTop;
@@ -29,11 +35,18 @@ public partial class MainWindow : Window
     private bool _databaseReady;
     private bool _overlayEnabled = true;
     private bool _tickBusy;
+    private bool _locked;
+    private bool _keepVisibleWhenInactive;
     private string _targetStatus = "No target read yet";
 
     public MainWindow()
     {
         InitializeComponent();
+        _locked = _settings.Locked;
+        _keepVisibleWhenInactive = _settings.KeepVisibleWhenInactive;
+        Width = Math.Clamp(_settings.OverlayWidth, 180, 650);
+        Height = Math.Clamp(_settings.OverlayHeight, 67, 245);
+
         Loaded += MainWindow_Loaded;
         SourceInitialized += MainWindow_SourceInitialized;
         Closing += MainWindow_Closing;
@@ -45,30 +58,42 @@ public partial class MainWindow : Window
     public bool SelectEqProcess(EqProcessCandidate candidate)
     {
         var attached = _eq.SelectProcess(candidate);
-        _lastLookupKey = string.Empty;
-        _npc = null;
+        ClearLookup();
         return attached;
     }
 
     public bool SelectEqProcessByPid(int pid)
     {
         var attached = _eq.SelectProcessByPid(pid);
-        _lastLookupKey = string.Empty;
-        _npc = null;
+        ClearLookup();
         return attached;
     }
 
     public void UseAutoDetect()
     {
         _eq.UseAutoDetect();
-        _lastLookupKey = string.Empty;
-        _npc = null;
+        ClearLookup();
     }
 
     public void SetOverlayEnabled(bool enabled)
     {
         _overlayEnabled = enabled;
         if (!enabled) Hide();
+    }
+
+    public void SetKeepVisibleWhenInactive(bool enabled)
+    {
+        _keepVisibleWhenInactive = enabled;
+        _settings.KeepVisibleWhenInactive = enabled;
+        _settings.Save();
+    }
+
+    public void SetLocked(bool locked)
+    {
+        _locked = locked;
+        _settings.Locked = locked;
+        _settings.Save();
+        ApplyInteractionStyle();
     }
 
     public OverlayStatus GetStatus()
@@ -84,19 +109,27 @@ public partial class MainWindow : Window
             _targetStatus,
             _db.Status,
             _overlayEnabled,
-            IsVisible);
+            IsVisible,
+            _keepVisibleWhenInactive,
+            _locked);
+    }
+
+    private void ClearLookup()
+    {
+        _lastLookupKey = string.Empty;
+        _npc = null;
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         Left = 20;
         Top = 20;
+        ApplyInteractionStyle();
         _timer.Start();
 
         var progress = new Progress<string>(s =>
         {
-            if (string.IsNullOrWhiteSpace(TargetSubline.Text) || TargetSubline.Text.Contains("database", StringComparison.OrdinalIgnoreCase))
-                TargetSubline.Text = s;
+            _targetStatus = s;
         });
 
         try
@@ -106,16 +139,28 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            TargetSubline.Text = "NPC database unavailable — live HP%/distance still work";
+            _targetStatus = "NPC database unavailable";
             Debug.WriteLine(ex);
         }
     }
 
-    private void MainWindow_SourceInitialized(object? sender, EventArgs e)
+    private void MainWindow_SourceInitialized(object? sender, EventArgs e) => ApplyInteractionStyle();
+
+    private void ApplyInteractionStyle()
     {
+        if (!IsInitialized) return;
         var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+
         var style = GetWindowLong(hwnd, GWL_EXSTYLE);
-        SetWindowLong(hwnd, GWL_EXSTYLE, style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+        style |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+        if (_locked) style |= WS_EX_TRANSPARENT;
+        else style &= ~WS_EX_TRANSPARENT;
+        SetWindowLong(hwnd, GWL_EXSTYLE, style);
+
+        PanelRoot.IsHitTestVisible = !_locked;
+        ResizeThumb.Visibility = _locked ? Visibility.Collapsed : Visibility.Visible;
+        UnlockOutline.Visibility = _locked ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private async void Timer_Tick(object? sender, EventArgs e)
@@ -128,7 +173,7 @@ public partial class MainWindow : Window
             {
                 _targetStatus = "Waiting for a readable EQ client";
                 TargetName.Text = "Waiting for EverQuest…";
-                TargetSubline.Text = _databaseReady ? _eq.LastAttachStatus : _db.Status;
+                _targetStatus = _databaseReady ? _eq.LastAttachStatus : _db.Status;
                 ResetLiveValues();
                 Hide();
                 return;
@@ -146,7 +191,7 @@ public partial class MainWindow : Window
             var foreground = GetForegroundWindow();
             var overlayHwnd = new WindowInteropHelper(this).Handle;
             var shouldShow = _overlayEnabled &&
-                             (foreground == _eq.WindowHandle || foreground == overlayHwnd);
+                             (_keepVisibleWhenInactive || foreground == _eq.WindowHandle || foreground == overlayHwnd);
             if (shouldShow)
             {
                 if (!IsVisible) Show();
@@ -161,20 +206,15 @@ public partial class MainWindow : Window
             {
                 _targetStatus = _eq.LastReadStatus;
                 TargetName.Text = "No target";
-                TargetSubline.Text = _databaseReady ? "Select a mob in EQ" : _db.Status;
-                _npc = null;
-                _lastLookupKey = string.Empty;
+                ClearLookup();
                 ResetLiveValues();
                 return;
             }
 
-            _targetStatus = $"{target.DisplayName} — {target.HpPercent:0}% HP — {target.Distance:0} units";
-            TargetName.Text = target.DisplayName;
-            TargetSubline.Text = $"Lv {target.Level}   •   Spawn {target.SpawnId}";
-            DistanceText.Text = $"{target.Distance:0} u";
-
             var pct = target.HpPercent;
-            HpText.Text = $"HP {pct:0}%";
+            TargetName.Text = target.DisplayName;
+            DistanceText.Text = $"{target.Distance:0} u";
+            HealthText.Text = $"--   {pct:0}%";
             UpdateHealthBar(pct);
 
             var lookupKey = $"{target.ZoneId}:{EqMemoryReader.NormalizeNpcName(target.RawName)}";
@@ -196,17 +236,18 @@ public partial class MainWindow : Window
             if (_npc is not null)
             {
                 var estimated = (long)Math.Round(_npc.MaxHp * pct / 100.0);
-                EstimatedHpText.Text = $"~ {estimated:N0} / {_npc.MaxHp:N0}";
+                HealthText.Text = $"{estimated:N0}   {pct:0}%";
                 MRText.Text = _npc.MR.ToString();
                 CRText.Text = _npc.CR.ToString();
                 DRText.Text = _npc.DR.ToString();
                 FRText.Text = _npc.FR.ToString();
                 PRText.Text = _npc.PR.ToString();
+                _targetStatus = $"{target.DisplayName} — {pct:0}% HP — {target.Distance:0} units — database matched";
             }
             else
             {
-                EstimatedHpText.Text = "~ -- / --";
                 MRText.Text = CRText.Text = DRText.Text = FRText.Text = PRText.Text = "--";
+                _targetStatus = $"{target.DisplayName} — {pct:0}% HP — {target.Distance:0} units — no database match";
             }
         }
         finally
@@ -224,15 +265,14 @@ public partial class MainWindow : Window
     private void ResetLiveValues()
     {
         DistanceText.Text = "-- u";
-        HpText.Text = "HP --%";
-        EstimatedHpText.Text = "~ -- / --";
+        HealthText.Text = "--   --%";
         MRText.Text = CRText.Text = DRText.Text = FRText.Text = PRText.Text = "--";
         UpdateHealthBar(0);
     }
 
     private void PanelRoot_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_eq.Process is null) return;
+        if (_locked || _eq.Process is null) return;
         _dragging = true;
         _dragStartMouse = PointToScreen(e.GetPosition(this));
         _dragStartLeft = Left;
@@ -243,7 +283,7 @@ public partial class MainWindow : Window
 
     private void PanelRoot_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (!_dragging || _eq.Process is null || e.LeftButton != MouseButtonState.Pressed) return;
+        if (_locked || !_dragging || _eq.Process is null || e.LeftButton != MouseButtonState.Pressed) return;
         var now = PointToScreen(e.GetPosition(this));
         var scale = GetDpiScale();
         var nextLeft = _dragStartLeft + (now.X - _dragStartMouse.X) / scale;
@@ -262,25 +302,70 @@ public partial class MainWindow : Window
         if (!_dragging) return;
         _dragging = false;
         PanelRoot.ReleaseMouseCapture();
+        SavePositionAndSize();
+        e.Handled = true;
+    }
 
+    private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (_locked || _eq.Process is null) return;
+        _resizing = true;
+
+        var widthDeltaFromVertical = e.VerticalChange * DesignAspect;
+        var delta = Math.Abs(e.HorizontalChange) >= Math.Abs(widthDeltaFromVertical)
+            ? e.HorizontalChange
+            : widthDeltaFromVertical;
+
+        var minWidth = 180.0;
+        var maxWidth = 650.0;
+        if (TryGetEqClientBounds(_eq.WindowHandle, out var bounds))
+        {
+            maxWidth = Math.Min(maxWidth, Math.Max(minWidth, bounds.Right - Left));
+            maxWidth = Math.Min(maxWidth, Math.Max(minWidth, (bounds.Bottom - Top) * DesignAspect));
+        }
+
+        var newWidth = Math.Clamp(Width + delta, minWidth, maxWidth);
+        Width = newWidth;
+        Height = newWidth / DesignAspect;
+        UpdateHealthBar(ParseDisplayedPercent());
+    }
+
+    private void ResizeThumb_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        _resizing = false;
+        SavePositionAndSize();
+    }
+
+    private double ParseDisplayedPercent()
+    {
+        var text = HealthText.Text ?? string.Empty;
+        var pctIndex = text.LastIndexOf('%');
+        if (pctIndex <= 0) return 0;
+        var start = pctIndex - 1;
+        while (start >= 0 && (char.IsDigit(text[start]) || text[start] == '.')) start--;
+        return double.TryParse(text[(start + 1)..pctIndex], out var pct) ? pct : 0;
+    }
+
+    private void SavePositionAndSize()
+    {
         if (_eq.Process is not null && TryGetEqClientBounds(_eq.WindowHandle, out var bounds))
         {
             _settings.OffsetX = Left - bounds.Left;
             _settings.OffsetY = Top - bounds.Top;
-            _settings.Save();
         }
-        e.Handled = true;
+        _settings.OverlayWidth = Width;
+        _settings.OverlayHeight = Height;
+        _settings.Save();
     }
 
     private void KeepInsideEq(Rect bounds)
     {
-        if (!_dragging)
-        {
-            var desiredLeft = bounds.Left + _settings.OffsetX;
-            var desiredTop = bounds.Top + _settings.OffsetY;
-            Left = Math.Clamp(desiredLeft, bounds.Left, Math.Max(bounds.Left, bounds.Right - ActualWidth));
-            Top = Math.Clamp(desiredTop, bounds.Top, Math.Max(bounds.Top, bounds.Bottom - ActualHeight));
-        }
+        if (_dragging || _resizing) return;
+
+        var desiredLeft = bounds.Left + _settings.OffsetX;
+        var desiredTop = bounds.Top + _settings.OffsetY;
+        Left = Math.Clamp(desiredLeft, bounds.Left, Math.Max(bounds.Left, bounds.Right - ActualWidth));
+        Top = Math.Clamp(desiredTop, bounds.Top, Math.Max(bounds.Top, bounds.Bottom - ActualHeight));
     }
 
     private double GetDpiScale()
