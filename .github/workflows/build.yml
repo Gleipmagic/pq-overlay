@@ -28,4 +28,3 @@ jobs:
           name: EQMobOverlay-win-x86
           path: bin/Release/net8.0-windows/win-x86/publish/**
           if-no-files-found: error
-
