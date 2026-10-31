@@ -1,1 +1,31 @@
+name: Build EQ Mob Overlay
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore EQMobOverlay.csproj
+
+      - name: Publish self-contained x86
+        run: dotnet publish EQMobOverlay.csproj -c Release -r win-x86 --self-contained true -p:PublishSingleFile=true
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: EQMobOverlay-win-x86
+          path: bin/Release/net8.0-windows/win-x86/publish/**
+          if-no-files-found: error
 
